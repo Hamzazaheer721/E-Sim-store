@@ -1,70 +1,45 @@
-'use client';
-
 import Image from 'next/image';
 import Link from 'next/link';
-import { use } from 'react';
 import { notFound } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import MuiLink from '@mui/material/Link';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import { PlanCard } from '@/components/PlanCard';
-import { PlanCardSkeleton } from '@/components/PlanCardSkeleton';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { Skeleton } from '@/components/ui/Skeleton';
-import { useDestination } from '@/hooks/useDestination';
-import { ApiError } from '@/lib/api';
+import { ApiError, getDestination, getDestinations } from '@/lib/api';
 
-export default function DestinationPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params);
-  const { data: destination, isLoading, isError, error, refetch } = useDestination(slug);
+export const revalidate = 60;
 
-  if (isLoading) {
-    return (
-      <Box>
-        <Skeleton variant="text" width={160} height={24} />
-        <Skeleton variant="rectangular" height={256} sx={{ mt: 2, borderRadius: 2 }} />
-        <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <PlanCardSkeleton key={i} />
-          ))}
-        </Box>
-      </Box>
-    );
-  }
+export async function generateStaticParams() {
+  const destinations = await getDestinations();
+  return destinations.filter((d) => d.popular).map((d) => ({ slug: d.slug }));
+}
 
-  if (error instanceof ApiError && error.status === 404) {
-    notFound();
-  }
+export default async function DestinationPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
 
-  if (isError || !destination) {
-    return (
-      <ErrorState
-        message="Failed to load destination. Please try again."
-        onRetry={() => refetch()}
-      />
-    );
-  }
+  const destination = await getDestination(slug).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    throw error;
+  });
 
   return (
     <Box>
-      <MuiLink
-        component={Link}
+      <Link
         href="/"
-        underline="hover"
-        color="primary"
-        sx={{
+        style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 0.5,
+          gap: '4px',
           fontSize: '0.875rem',
           fontWeight: 500,
+          color: '#0f2b46',
+          textDecoration: 'none',
         }}
       >
         <ArrowBackIcon sx={{ fontSize: 16 }} />
         All destinations
-      </MuiLink>
+      </Link>
 
       <Box
         sx={{

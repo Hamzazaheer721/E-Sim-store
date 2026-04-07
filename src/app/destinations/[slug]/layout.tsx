@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
-import { getDestination } from '@/lib/api';
+import { ApiError, getDestination } from '@/lib/api';
+import { notFound } from 'next/navigation';
 
 export async function generateMetadata({
   params,
@@ -9,17 +10,15 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
 
-  try {
-    const destination = await getDestination(slug);
-    return {
-      title: `${destination.name} eSIM Plans — eSIM Shop`,
-      description: `Buy eSIM plans for ${destination.name}. Choose from ${destination.plans.length} plans with instant delivery.`,
-    };
-  } catch {
-    return {
-      title: 'Destination — eSIM Shop',
-    };
-  }
+  const destination = await getDestination(slug).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    throw error;
+  });
+
+  return {
+    title: `${destination.name} eSIM Plans`,
+    description: `Browse eSIM data plans for ${destination.name}. Stay connected while travelling.`,
+  };
 }
 
 export default function DestinationLayout({ children }: { children: React.ReactNode }) {
