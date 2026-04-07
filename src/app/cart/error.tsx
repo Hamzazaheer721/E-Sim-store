@@ -2,6 +2,13 @@
 
 import { ErrorState } from '@/components/ui/ErrorState';
 
-export default function CartError({ reset }: { reset: () => void }) {
-  return <ErrorState message="Something went wrong loading your cart." onRetry={reset} />;
+export default function CartError() {
+  return (
+    <ErrorState
+      message="Something went wrong loading this destination."
+      onRetry={() => {
+        window.location.href = '/';
+      }}
+    />
+  );
 }

@@ -1,6 +1,6 @@
 import type { Cart, Destination, DestinationWithPlans, Order, PaymentMethod } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL!;
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://esim-api.evgastap.workers.dev';
 
 export class ApiError extends Error {
   constructor(

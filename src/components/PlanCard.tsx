@@ -99,7 +99,7 @@ export function PlanCard({ plan }: PlanCardProps) {
             >
               <CheckCircleOutlineIcon fontSize="small" />
               <Typography variant="body2" fontWeight={600}>
-                Already Added to cart
+                Added to cart
               </Typography>
             </Box>
           </Box>

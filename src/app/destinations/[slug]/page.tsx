@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { use } from 'react';
+import { notFound } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import MuiLink from '@mui/material/Link';
@@ -13,10 +14,11 @@ import { PlanCardSkeleton } from '@/components/PlanCardSkeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useDestination } from '@/hooks/useDestination';
+import { ApiError } from '@/lib/api';
 
 export default function DestinationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const { data: destination, isLoading, isError, refetch } = useDestination(slug);
+  const { data: destination, isLoading, isError, error, refetch } = useDestination(slug);
 
   if (isLoading) {
     return (
@@ -30,6 +32,10 @@ export default function DestinationPage({ params }: { params: Promise<{ slug: st
         </Box>
       </Box>
     );
+  }
+
+  if (error instanceof ApiError && error.status === 404) {
+    notFound();
   }
 
   if (isError || !destination) {
