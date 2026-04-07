@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Alert from '@mui/material/Alert';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
 import { Button } from '@/components/ui/Button';
 import { useCart } from '@/hooks/useCart';
@@ -17,7 +19,9 @@ interface PlanCardProps {
 }
 
 export function PlanCard({ plan }: PlanCardProps) {
-  const { addToCart, isAdding } = useCart();
+  const { cart, addToCart, isAdding } = useCart();
+
+  const isInCart = cart?.items.some((item) => item.planId === plan.id) ?? false;
 
   return (
     <Card sx={{ transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
@@ -80,16 +84,38 @@ export function PlanCard({ plan }: PlanCardProps) {
           </Alert>
         )}
 
-        <Button
-          onClick={() => addToCart(plan.id)}
-          isLoading={isAdding}
-          disabled={isAdding}
-          fullWidth
-          size="lg"
-          style={{ marginTop: 16 }}
-        >
-          {isAdding ? 'Adding...' : 'Add to Cart'}
-        </Button>
+        {isInCart ? (
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                py: 1.5,
+                borderRadius: 1,
+                bgcolor: 'success.main',
+                color: 'white',
+              }}
+            >
+              <CheckCircleOutlineIcon fontSize="small" />
+              <Typography variant="body2" fontWeight={600}>
+                Already Added to cart
+              </Typography>
+            </Box>
+          </Box>
+        ) : (
+          <Button
+            onClick={() => addToCart(plan.id)}
+            isLoading={isAdding}
+            disabled={isAdding}
+            fullWidth
+            size="lg"
+            style={{ marginTop: 16 }}
+          >
+            {isAdding ? 'Adding...' : 'Add to Cart'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
