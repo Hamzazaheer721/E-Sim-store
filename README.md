@@ -105,180 +105,49 @@ The API surface is seven endpoints. A 40-line typed `apiFetch<T>()` wrapper with
 
 ## What I'd Do With More Time
 
-These are improvements I'd prioritise next. Each is scoped to roughly one hour of work.
-
 ---
 
 ### 1. ISR for `/destinations/[slug]`
 
-**Why it matters:** The destination page currently makes two separate API calls for the same data — one server-side for `generateMetadata` and one client-side for the page content. Converting to ISR eliminates both fetches into a single server render, removes the skeleton-flash on first load, and makes plan content indexable by search engines.
-
-**How to implement:**
-
-1. Convert `src/app/destinations/[slug]/page.tsx` from a `'use client'` component to a Server Component.
-2. `await getDestination(slug)` directly in the page — Next.js deduplicates this with the `generateMetadata` call automatically.
-3. Add `export const revalidate = 60` so the page rebuilds in the background every 60 seconds.
-4. Add `generateStaticParams` to pre-render the most popular destinations at build time:
-
-```ts
-// src/app/destinations/[slug]/page.tsx
-export const revalidate = 60;
-
-export async function generateStaticParams() {
-  const destinations = await getDestinations();
-  return destinations.filter((d) => d.popular).map((d) => ({ slug: d.slug }));
-}
-
-export default async function DestinationPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const destination = await getDestination(slug);
-  // ...render
-}
-```
-
-5. Extract only `PlanCard` (the "Add to Cart" mutation) as `'use client'` — it's the only interactive island.
+The destination page currently makes two separate API calls for the same data, one server-side inside `generateMetadata` and one client-side inside the component. Converting to ISR would collapse both into a single server fetch, eliminate the skeleton-flash on first load, and make plan content indexable by search engines. The page would become a Server Component that `await`s `getDestination(slug)` directly, with `revalidate = 60` to keep prices fresh and `generateStaticParams` to pre-build popular destinations at build time. Only `PlanCard` would remain `'use client'` since it owns the add-to-cart mutation.
 
 ---
 
-### 2. Sort dropdown on the destinations page
+### 2. Sort dropdown
 
-**Why it matters:** Users currently have no way to order results — most popular first, cheapest first, A–Z. Sorting by `startingFromPriceInCents` is valuable for price-sensitive shoppers.
-
-**How to implement:**
-
-Add a `sort` URL param alongside `search` and `region`. The sort is applied client-side on the array returned by the API (the API doesn't support a sort param):
-
-```ts
-// In DestinationsContent — add a sort select
-const sort = searchParams.get('sort') ?? 'default';
-
-const sorted = useMemo(() => {
-  if (!destinations) return [];
-  if (sort === 'price_asc')
-    return [...destinations].sort(
-      (a, b) => a.startingFromPriceInCents - b.startingFromPriceInCents,
-    );
-  if (sort === 'price_desc')
-    return [...destinations].sort(
-      (a, b) => b.startingFromPriceInCents - a.startingFromPriceInCents,
-    );
-  if (sort === 'name_asc') return [...destinations].sort((a, b) => a.name.localeCompare(b.name));
-  return destinations; // default: API order (popular first)
-}, [destinations, sort]);
-```
-
-Add a MUI `Select` component next to the `RegionFilter` that writes `?sort=price_asc` to the URL using `router.replace`.
+Users have no way to order results: cheapest first, most data, A–Z. I'd add a `sort` URL param and apply sorting client-side with `useMemo` on the React Query result (the API doesn't support server-side sort), surfaced as a MUI `Select` next to the region filter chips. URL-driven state means the sorted view is shareable and survives a refresh.
 
 ---
 
 ### 3. Dark mode
 
-**Why it matters:** MUI has first-class dark mode support. It's a visible quality-of-life feature and demonstrates knowledge of MUI's theming system.
-
-**How to implement:**
-
-1. Extend `theme.ts` with a `colorSchemes` option (MUI v6+):
-
-```ts
-export const theme = createTheme({
-  colorSchemes: { dark: true },
-  // existing palette stays as the light scheme
-});
-```
-
-2. Replace `ThemeProvider` with `AppRouterCacheProvider` + `CssVarsProvider` from `@mui/material-nextjs`.
-3. Add a toggle button to the `Header` using `useColorScheme()`:
-
-```tsx
-import { useColorScheme } from '@mui/material/styles';
-
-function ThemeToggle() {
-  const { mode, setMode } = useColorScheme();
-  return (
-    <IconButton onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')}>
-      {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-    </IconButton>
-  );
-}
-```
-
-MUI persists the selected mode automatically in `localStorage`.
+MUI supports dark mode natively via `colorSchemes` and `useColorScheme`. I'd extend `theme.ts` with a dark colour scheme, add a toggle `IconButton` to the header, and let MUI persist the user's preference in `localStorage` automatically with no extra state management needed.
 
 ---
 
-### 4. `notFound()` for invalid destination slugs
+### 4. `aria-label` on the cart icon
 
-**Why it matters:** Visiting `/destinations/nonexistent` currently renders a generic error boundary. Next.js's `not-found.tsx` is cleaner and more user-friendly.
-
-**How to implement:**
-
-```ts
-import { notFound } from 'next/navigation';
-
-// In useDestination or in the page component on isError:
-if (error instanceof ApiError && error.status === 404) {
-  notFound();
-}
-```
+The cart `IconButton` in the header has no accessible label so screen readers announce it as an unlabelled button. Adding a dynamic `aria-label` that includes the item count is a one-line fix and a meaningful accessibility baseline improvement.
 
 ---
 
-### 5. Persist order confirmation across a page refresh
+### 5. Bundle analysis
 
-**Why it matters:** The order confirmation is currently stored in `useState`. Refreshing the page loses it and leaves the user with an empty cart screen.
-
-**How to implement:**
-
-After a successful order, redirect to a dedicated URL:
-
-```ts
-// In cart/page.tsx onSuccess handler
-router.push(`/orders/${order.orderId}`);
-```
-
-Create `src/app/orders/[orderId]/page.tsx` that calls `GET /api/orders/:id` (if the API supports it) or stores the order object in sessionStorage before redirecting.
+MUI is a large dependency. Running `@next/bundle-analyzer` would identify which MUI components are actually contributing to the bundle and whether tree-shaking is working correctly. Some components (like `Grid`, `Typography`) are used heavily while others could be replaced with lighter alternatives.
 
 ---
 
-### 6. `aria-label` on header cart icon
+### 6. Lighthouse CI
 
-**Why it matters:** The cart `IconButton` has no accessible label — screen readers announce it as an unlabelled button.
-
-**Fix (one line):**
-
-```tsx
-<IconButton aria-label={`Cart, ${itemCount} item${itemCount !== 1 ? 's' : ''}`} color="inherit" size="small">
-```
+Adding Lighthouse CI to the GitHub Actions pipeline would track Core Web Vitals (LCP, CLS, INP) on every PR and surface regressions before they reach production. Given MUI's bundle size, LCP and INP are the most at-risk metrics.
 
 ---
 
-### 7. Environment variable validation
+### 7. `next/image` placeholder on the hero image
 
-**Why it matters:** `process.env.NEXT_PUBLIC_API_URL!` uses a non-null assertion — a misconfigured deploy silently produces `undefinedundefined` URLs at runtime. A Zod schema fails loudly at startup.
+The destination hero image loads after the page renders, causing a visible layout jump. Adding a `blurDataURL` placeholder to the `<Image>` component would eliminate the shift and improve perceived load performance with a single prop change.
 
-**Fix:**
-
-```ts
-// src/lib/env.ts
-import { z } from 'zod';
-
-const envSchema = z.object({
-  NEXT_PUBLIC_API_URL: z.string().url(),
-});
-
-export const env = envSchema.parse({
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-});
-```
-
-Import `env.NEXT_PUBLIC_API_URL` in `api.ts` instead of `process.env.NEXT_PUBLIC_API_URL!`.
-
-- **Dark mode** — MUI theme supports `mode: 'dark'`, tokens are structured for it
-- **Image placeholders** — `blurDataURL` for destination images to eliminate layout shift
-- **Error boundary** — React `ErrorBoundary` at route level for uncaught exceptions
-- **Bundle analysis** — `@next/bundle-analyzer` to identify and tree-shake unused MUI components
-
-## Scripts
+---
 
 ```bash
 npm run dev          # Start dev server (Turbopack)
